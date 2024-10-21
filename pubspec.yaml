@@ -1,7 +1,7 @@
 name: supsis_flutter_widget
 description: "Supsis Live Flutter Widget"
 version: 0.0.1
-repository: 
+repository: https://github.com/softcand/supsis-flutter-widget
 homepage: https://supsis.com
 
 environment:

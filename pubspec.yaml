@@ -1,0 +1,21 @@
+name: supsis_flutter_widget
+description: "Supsis Live Flutter Widget"
+version: 0.0.1
+repository: 
+homepage: https://supsis.com
+
+environment:
+  sdk: ^3.5.3
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  webview_flutter: ^4.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:

@@ -168,9 +168,10 @@ class _SupsisVisitorState extends State<SupsisVisitor> {
   }
 
   void _setVisible(bool visible) {
-    setState(() {
-      _visible = visible;
-    });
+    if (mounted)
+      setState(() {
+        _visible = visible;
+      });
   }
 
   void _onPageFinished(String url) {
@@ -185,9 +186,10 @@ class _SupsisVisitorState extends State<SupsisVisitor> {
 
   void _onLoadEnd() {
     Future.delayed(const Duration(milliseconds: 1000), () {
-      setState(() {
-        _loaded = true;
-      });
+      if (mounted)
+        setState(() {
+          _loaded = true;
+        });
       if (_buff.isNotEmpty) {
         for (var fn in _buff) {
           fn();

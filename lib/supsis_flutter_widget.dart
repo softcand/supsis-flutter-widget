@@ -102,7 +102,7 @@ class _SupsisVisitorState extends State<SupsisVisitor> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (String url) {
-            _onPageFinished(url);
+            _onLoadEnd();
           },
           onWebResourceError: (WebResourceError error) {
             if (kDebugMode) {
@@ -184,13 +184,7 @@ class _SupsisVisitorState extends State<SupsisVisitor> {
   }
 
   void _onPageFinished(String url) {
-    // Re-define window.postMessage
-    _webViewController.runJavaScript('''
-      window.originalPostMessage = window.postMessage;
-      window.postMessage = function(message) {
-        Flutter.postMessage(JSON.stringify(message));
-      };
-    ''');
+    // Removed JavaScript injection
     _onLoadEnd();
   }
 

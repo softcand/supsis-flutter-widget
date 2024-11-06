@@ -1,3 +1,7 @@
+## 0.0.4
+
+- **Refactoring** Refactoring \_initializeWebViewController
+
 ## 0.0.3
 
 - **Feature:** Added `onMinimized` callback...

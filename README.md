@@ -26,7 +26,7 @@ Bu kütüphane pub.dev üzerinden dağıtılmaktadır. Projenize eklemek için a
 dependencies:
   flutter:
     sdk: flutter
-  supsis_flutter_widget: ^0.0.1
+  supsis_flutter_widget: ^0.0.3
 ```
 
 - Paketleri indirmek için terminalde şu komutu çalıştırın:

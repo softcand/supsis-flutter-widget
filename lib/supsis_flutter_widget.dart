@@ -8,17 +8,16 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 // Utility function to get the domain URL
 String getDomain(String? domainName, String environment) {
-  String uri = "";
   if (environment == "beta") {
-    uri = domainName != null
+    return domainName != null
         ? "https://${domainName}.betavisitor.supsis.live/"
         : "https://betavisitor.supsis.live/";
   } else if (environment == "prod") {
-    uri = domainName != null
+    return domainName != null
         ? "https://${domainName}.visitor.supsis.live/"
         : "https://visitor.supsis.live/";
   }
-  return uri;
+  return "https://visitor.supsis.live/";
 }
 
 // The controller class
@@ -61,6 +60,7 @@ class SupsisVisitor extends StatefulWidget {
   final VoidCallback? onConnected;
   final VoidCallback? onDisconnected;
   final SupsisVisitorController? controller;
+  final VoidCallback? onMinimized; // Added this line
 
   SupsisVisitor({
     Key? key,
@@ -69,6 +69,7 @@ class SupsisVisitor extends StatefulWidget {
     this.onConnected,
     this.onDisconnected,
     this.controller,
+    this.onMinimized, // And this line
   }) : super(key: key ?? controller?._key);
 
   @override
@@ -94,12 +95,19 @@ class _SupsisVisitorState extends State<SupsisVisitor> {
   void _initializeWebViewController() {
     _webViewController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..addJavaScriptChannel('Flutter',
-          onMessageReceived: _onJavascriptMessageReceived)
+      ..addJavaScriptChannel(
+        'Flutter',
+        onMessageReceived: _onJavascriptMessageReceived,
+      )
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (String url) {
             _onPageFinished(url);
+          },
+          onWebResourceError: (WebResourceError error) {
+            if (kDebugMode) {
+              print("WebView Error: ${error.errorCode} - ${error.description}");
+            }
           },
         ),
       )
@@ -168,15 +176,17 @@ class _SupsisVisitorState extends State<SupsisVisitor> {
   }
 
   void _setVisible(bool visible) {
-    if (mounted)
+    if (mounted) {
       setState(() {
         _visible = visible;
       });
+    }
   }
 
   void _onPageFinished(String url) {
     // Re-define window.postMessage
     _webViewController.runJavaScript('''
+      window.originalPostMessage = window.postMessage;
       window.postMessage = function(message) {
         Flutter.postMessage(JSON.stringify(message));
       };
@@ -186,15 +196,16 @@ class _SupsisVisitorState extends State<SupsisVisitor> {
 
   void _onLoadEnd() {
     Future.delayed(const Duration(milliseconds: 1000), () {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loaded = true;
         });
-      if (_buff.isNotEmpty) {
-        for (var fn in _buff) {
-          fn();
+        if (_buff.isNotEmpty) {
+          for (var fn in _buff) {
+            fn();
+          }
+          _buff.clear();
         }
-        _buff.clear();
       }
     });
   }
@@ -208,6 +219,7 @@ class _SupsisVisitorState extends State<SupsisVisitor> {
       var data = jsonDecode(message);
       if (data['command'] == 'minimize') {
         _setVisible(false);
+        widget.onMinimized?.call(); // Notify parent widget
       } else if (data['command'] == 'visitor-connected') {
         if (!_connected) {
           widget.onConnected?.call();
@@ -231,7 +243,11 @@ class _SupsisVisitorState extends State<SupsisVisitor> {
     return Visibility(
       visible: _visible,
       child: SafeArea(
-        child: WebViewWidget(controller: _webViewController),
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          child: WebViewWidget(controller: _webViewController),
+        ),
       ),
     );
   }

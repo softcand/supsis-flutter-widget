@@ -1,12 +1,11 @@
-library supsis_flutter_widget;
-
-// lib/src/supsis_visitor_widget.dart
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
-// Utility function to get the domain URL
 String getDomain(String? domainName, String environment) {
   if (environment == "beta") {
     return domainName != null
@@ -20,7 +19,6 @@ String getDomain(String? domainName, String environment) {
   return "https://visitor.supsis.live/";
 }
 
-// The controller class
 class SupsisVisitorController {
   final GlobalKey<_SupsisVisitorState> _key = GlobalKey<_SupsisVisitorState>();
 
@@ -53,14 +51,15 @@ class SupsisVisitorController {
   }
 }
 
-// The SupsisVisitor widget
 class SupsisVisitor extends StatefulWidget {
   final String? domainName;
   final String environment;
   final VoidCallback? onConnected;
   final VoidCallback? onDisconnected;
   final SupsisVisitorController? controller;
-  final VoidCallback? onMinimized; // Added this line
+  final VoidCallback? onMinimized;
+  final Color linearProgressColor;
+  final Color circularProgressColor;
 
   SupsisVisitor({
     Key? key,
@@ -69,39 +68,72 @@ class SupsisVisitor extends StatefulWidget {
     this.onConnected,
     this.onDisconnected,
     this.controller,
-    this.onMinimized, // And this line
+    this.onMinimized,
+    this.linearProgressColor = Colors.black,
+    this.circularProgressColor = Colors.white,
   }) : super(key: key ?? controller?._key);
 
   @override
   _SupsisVisitorState createState() => _SupsisVisitorState();
 }
 
-// The private state class
-class _SupsisVisitorState extends State<SupsisVisitor> {
+class _SupsisVisitorState extends State<SupsisVisitor>
+    with AutomaticKeepAliveClientMixin {
   late final WebViewController _webViewController;
   bool _visible = true;
   bool _loaded = false;
   final List<VoidCallback> _buff = [];
   bool _connected = false;
+  double _progress = 0;
 
   String get uri => getDomain(widget.domainName, widget.environment);
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   void initState() {
     super.initState();
+    print("Initializing WebView with URL: $uri");
     _initializeWebViewController();
   }
 
-  void _initializeWebViewController() {
-    _webViewController = WebViewController()
+  void _initializeWebViewController() async {
+    print("Setting up WebViewController...");
+
+    late final PlatformWebViewControllerCreationParams params;
+    if (WebViewPlatform.instance is WebKitWebViewPlatform) {
+      params = WebKitWebViewControllerCreationParams(
+        allowsInlineMediaPlayback: true,
+        mediaTypesRequiringUserAction: const <PlaybackMediaTypes>{},
+      );
+    } else {
+      params = const PlatformWebViewControllerCreationParams();
+    }
+
+    _webViewController = WebViewController.fromPlatformCreationParams(params)
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..addJavaScriptChannel(
         'Flutter',
-        onMessageReceived: _onJavascriptMessageReceived,
+        onMessageReceived: (JavaScriptMessage message) {
+          _listenPostMessage(message.message);
+        },
       )
       ..setNavigationDelegate(
         NavigationDelegate(
+          onNavigationRequest: (NavigationRequest request) {
+            print("Navigating to: ${request.url}");
+            return request.url.startsWith(uri)
+                ? NavigationDecision.navigate
+                : NavigationDecision.prevent;
+          },
+          onProgress: (int progress) {
+            setState(() {
+              _progress = progress / 100;
+            });
+          },
           onPageFinished: (String url) {
+            print("Page loaded: $url");
             _onLoadEnd();
           },
           onWebResourceError: (WebResourceError error) {
@@ -112,6 +144,12 @@ class _SupsisVisitorState extends State<SupsisVisitor> {
         ),
       )
       ..loadRequest(Uri.parse(uri));
+
+    if (_webViewController.platform is AndroidWebViewController) {
+      AndroidWebViewController.enableDebugging(true);
+      (_webViewController.platform as AndroidWebViewController)
+          .setMediaPlaybackRequiresUserGesture(false);
+    }
   }
 
   void _inject(String cmd, dynamic payload) {
@@ -183,64 +221,66 @@ class _SupsisVisitorState extends State<SupsisVisitor> {
     }
   }
 
-  void _onPageFinished(String url) {
-    // Removed JavaScript injection
-    _onLoadEnd();
-  }
-
   void _onLoadEnd() {
-    Future.delayed(const Duration(milliseconds: 1000), () {
+    Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
         setState(() {
           _loaded = true;
+          _progress = 1.0;
         });
-        if (_buff.isNotEmpty) {
-          for (var fn in _buff) {
-            fn();
-          }
-          _buff.clear();
+        for (var fn in _buff) {
+          fn();
         }
+        _buff.clear();
       }
     });
-  }
-
-  void _onJavascriptMessageReceived(JavaScriptMessage message) {
-    _listenPostMessage(message.message);
   }
 
   void _listenPostMessage(String message) {
     try {
       var data = jsonDecode(message);
-      if (data['command'] == 'minimize') {
-        _setVisible(false);
-        widget.onMinimized?.call(); // Notify parent widget
-      } else if (data['command'] == 'visitor-connected') {
-        if (!_connected) {
-          widget.onConnected?.call();
-        }
-        _connected = true;
-      } else if (data['command'] == 'visitor-disconnected') {
-        if (_connected) {
-          widget.onDisconnected?.call();
-        }
-        _connected = false;
+      switch (data['command']) {
+        case 'minimize':
+          _setVisible(false);
+          widget.onMinimized?.call();
+          break;
+        case 'visitor-connected':
+          if (!_connected) widget.onConnected?.call();
+          _connected = true;
+          break;
+        case 'visitor-disconnected':
+          if (_connected) widget.onDisconnected?.call();
+          _connected = false;
+          break;
       }
     } catch (e) {
-      if (kDebugMode) {
-        print("Error parsing message: $e");
-      }
+      if (kDebugMode) print("Error parsing message: $e");
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return Visibility(
       visible: _visible,
       child: SafeArea(
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          child: WebViewWidget(controller: _webViewController),
+        child: Stack(
+          children: [
+            _loaded
+                ? WebViewWidget(controller: _webViewController)
+                : SizedBox.shrink(),
+            if (_progress < 1.0)
+              LinearProgressIndicator(
+                value: _progress,
+                backgroundColor: Colors.grey.shade300,
+                color: widget.linearProgressColor,
+              ),
+            if (!_loaded)
+              Center(
+                child: CircularProgressIndicator(
+                    color: widget.circularProgressColor),
+              ),
+          ],
         ),
       ),
     );

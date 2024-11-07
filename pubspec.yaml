@@ -11,11 +11,12 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  webview_flutter: ^4.0.1
+  webview_flutter: ^4.10.0
+  webview_flutter_android: ^4.0.1
+  webview_flutter_wkwebview: ^3.16.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^4.0.0
 
 flutter:

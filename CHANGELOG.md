@@ -1,3 +1,7 @@
+## 0.0.5
+
+- **Fix** Fix \_Webview Visitor Widget
+
 ## 0.0.4
 
 - **Refactoring** Refactoring \_initializeWebViewController
